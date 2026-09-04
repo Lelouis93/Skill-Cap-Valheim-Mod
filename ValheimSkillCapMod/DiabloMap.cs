@@ -1,4 +1,5 @@
 using System.Globalization;
+using BepInEx.Configuration;
 using HarmonyLib;
 using Jotunn.Entities;
 using UnityEngine;
@@ -10,17 +11,39 @@ namespace MyBepInExPlugin
     {
         public static DiabloMap Instance { get; private set; }
 
-        public static KeyCode ToggleKey = KeyCode.Y;
-
-        public static float Zoom = 0.05f;
-        public static float Alpha = 0.05f;
-
         private const float MinZoom = 0.005f;
         private const float MaxZoom = 1f;
+
+        private static ConfigEntry<KeyCode> _toggleKey;
+        private static ConfigEntry<float> _zoom;
+        private static ConfigEntry<float> _alpha;
+
+        public static KeyCode ToggleKey => _toggleKey != null ? _toggleKey.Value : KeyCode.Y;
+        public static float Zoom => _zoom != null ? _zoom.Value : 0.05f;
+        public static float Alpha => _alpha != null ? _alpha.Value : 0.5f;
+
+        public static void BindConfig(ConfigFile config)
+        {
+            _toggleKey = config.Bind("DiabloMap", "Toggle key", KeyCode.Y,
+                "Key that shows/hides the overlay map");
+            _zoom = config.Bind("DiabloMap", "Zoom", 0.05f, new ConfigDescription(
+                "Fraction of the world map shown vertically (smaller = closer)",
+                new AcceptableValueRange<float>(MinZoom, MaxZoom)));
+            _alpha = config.Bind("DiabloMap", "Opacity", 0.5f, new ConfigDescription(
+                "Overlay opacity",
+                new AcceptableValueRange<float>(0f, 1f)));
+            // Re-apply immediately when changed from the settings menu (or console).
+            _alpha.SettingChanged += (sender, args) =>
+            {
+                if (Instance != null && Instance._built) Instance.ApplyAlpha();
+            };
+        }
 
         private RawImage _mapImage;
         private RawImage _playerMarker;
         private Texture2D _markerTexture;
+ 
+        private RenderTexture _composite;
         private bool _built;
         private bool _visible;
 
@@ -39,6 +62,7 @@ namespace MyBepInExPlugin
         {
             if (Instance == this) Instance = null;
             if (_markerTexture != null) Destroy(_markerTexture);
+            if (_composite != null) _composite.Release();
         }
 
         public static void ToggleVisible()
@@ -48,13 +72,12 @@ namespace MyBepInExPlugin
 
         public static void SetZoom(float zoom)
         {
-            Zoom = Mathf.Clamp(zoom, MinZoom, MaxZoom);
+            if (_zoom != null) _zoom.Value = Mathf.Clamp(zoom, MinZoom, MaxZoom);
         }
 
         public static void SetAlpha(float alpha)
         {
-            Alpha = Mathf.Clamp01(alpha);
-            if (Instance != null && Instance._built) Instance.ApplyAlpha();
+            if (_alpha != null) _alpha.Value = Mathf.Clamp01(alpha);
         }
 
         private void SetVisible(bool visible)
@@ -92,6 +115,13 @@ namespace MyBepInExPlugin
             _mapImage.enabled = canShow;
             _playerMarker.enabled = canShow;
             if (!canShow) return;
+
+            Material mapMaterial = map.m_mapImageSmall.material;
+            Texture mainTexture = map.m_mapImageSmall.mainTexture;
+            if (mapMaterial != null && mainTexture != null)
+            {
+                Graphics.Blit(mainTexture, _composite, mapMaterial);
+            }
 
             WorldToMapUV(player.transform.position, map, out float mx, out float my);
 
@@ -136,10 +166,13 @@ namespace MyBepInExPlugin
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 100;
 
+            _composite = new RenderTexture(map.m_textureSize, map.m_textureSize, 0);
+            _composite.wrapMode = TextureWrapMode.Clamp;
+
             _mapImage = new GameObject("MapImage").AddComponent<RawImage>();
             _mapImage.transform.SetParent(transform, false);
-            _mapImage.material = map.m_mapImageSmall.material;
-            if (map.m_mapImageSmall.texture != null) _mapImage.texture = map.m_mapImageSmall.texture;
+            // Default UI material on purpose — see the _composite field comment.
+            _mapImage.texture = _composite;
             _mapImage.raycastTarget = false;
 
             RectTransform mapRect = _mapImage.rectTransform;

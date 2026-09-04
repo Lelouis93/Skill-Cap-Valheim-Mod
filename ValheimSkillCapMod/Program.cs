@@ -83,6 +83,7 @@ namespace MyBepInExPlugin
             HarmonyInstance.PatchAll(assembly);
 
             // Registered before asset loading so the commands survive missing bundles
+            DiabloMap.BindConfig(Config);
             CommandManager.Instance.AddConsoleCommand(new DiabloMapCommand());
             CommandManager.Instance.AddConsoleCommand(new DiabloMapZoomCommand());
             CommandManager.Instance.AddConsoleCommand(new DiabloMapAlphaCommand());
