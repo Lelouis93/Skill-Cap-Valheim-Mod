@@ -39,11 +39,20 @@ namespace MyBepInExPlugin
             };
         }
 
+        private GameObject _root;
         private RawImage _mapImage;
         private RawImage _playerMarker;
         private Texture2D _markerTexture;
- 
+
         private RenderTexture _composite;
+
+        private const int FogMaskDownscale = 4;
+        private const float FogRebuildInterval = 2f;
+        private RawImage _fogMask;
+        private Texture2D _fogMaskTexture;
+        private Color32[] _fogPixels;
+        private float _nextFogRebuild;
+
         private bool _built;
         private bool _visible;
 
@@ -62,6 +71,7 @@ namespace MyBepInExPlugin
         {
             if (Instance == this) Instance = null;
             if (_markerTexture != null) Destroy(_markerTexture);
+            if (_fogMaskTexture != null) Destroy(_fogMaskTexture);
             if (_composite != null) _composite.Release();
         }
 
@@ -83,11 +93,7 @@ namespace MyBepInExPlugin
         private void SetVisible(bool visible)
         {
             _visible = visible;
-            if (_built)
-            {
-                _mapImage.enabled = visible;
-                _playerMarker.enabled = visible;
-            }
+            if (_built) _root.SetActive(visible);
         }
 
         private void Update()
@@ -112,9 +118,14 @@ namespace MyBepInExPlugin
             Minimap map = Minimap.instance;
 
             bool canShow = player != null && map != null && !Minimap.IsOpen();
-            _mapImage.enabled = canShow;
-            _playerMarker.enabled = canShow;
+            _root.SetActive(canShow);
             if (!canShow) return;
+
+            if (Time.unscaledTime >= _nextFogRebuild)
+            {
+                _nextFogRebuild = Time.unscaledTime + FogRebuildInterval;
+                RebuildFogMask(map);
+            }
 
             Material mapMaterial = map.m_mapImageSmall.material;
             Texture mainTexture = map.m_mapImageSmall.mainTexture;
@@ -127,7 +138,9 @@ namespace MyBepInExPlugin
 
             float height = Zoom;
             float width = Zoom * ((float)Screen.width / Screen.height);
-            _mapImage.uvRect = new Rect(mx - width * 0.5f, my - height * 0.5f, width, height);
+            Rect view = new Rect(mx - width * 0.5f, my - height * 0.5f, width, height);
+            _mapImage.uvRect = view;
+            _fogMask.uvRect = view;
         }
 
         private static bool IsTextInputActive()
@@ -143,6 +156,47 @@ namespace MyBepInExPlugin
             float half = map.m_textureSize / 2f;
             mx = (p.x / map.m_pixelSize + half) / map.m_textureSize;
             my = (p.z / map.m_pixelSize + half) / map.m_textureSize;
+        }
+
+        private static readonly System.Reflection.FieldInfo ExploredField =
+            AccessTools.Field(typeof(Minimap), "m_explored");
+        private static readonly System.Reflection.FieldInfo ExploredOthersField =
+            AccessTools.Field(typeof(Minimap), "m_exploredOthers");
+
+        private void RebuildFogMask(Minimap map)
+        {
+            bool[] explored = ExploredField != null ? ExploredField.GetValue(map) as bool[] : null;
+            bool[] exploredOthers = ExploredOthersField != null ? ExploredOthersField.GetValue(map) as bool[] : null;
+            if (explored == null || _fogMaskTexture == null) return;
+
+            int size = map.m_textureSize;
+            int maskSize = _fogMaskTexture.width;
+            if (_fogPixels == null) _fogPixels = new Color32[maskSize * maskSize];
+
+            Color32 shown = new Color32(255, 255, 255, 255);
+            Color32 hidden = new Color32(0, 0, 0, 0);
+            for (int y = 0; y < maskSize; y++)
+            {
+                int srcRow = y * FogMaskDownscale * size;
+                int dstRow = y * maskSize;
+                for (int x = 0; x < maskSize; x++)
+                {
+                    int i = srcRow + x * FogMaskDownscale;
+                    bool isExplored = explored[i] || (exploredOthers != null && exploredOthers[i]);
+                    _fogPixels[dstRow + x] = isExplored ? shown : hidden;
+                }
+            }
+
+            _fogMaskTexture.SetPixels32(_fogPixels);
+            _fogMaskTexture.Apply(false);
+        }
+
+        private static void Stretch(RectTransform rect)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
         }
 
         private bool _loggedBuildState;
@@ -169,21 +223,31 @@ namespace MyBepInExPlugin
             _composite = new RenderTexture(map.m_textureSize, map.m_textureSize, 0);
             _composite.wrapMode = TextureWrapMode.Clamp;
 
+            _root = new GameObject("MapRoot", typeof(RectTransform));
+            _root.transform.SetParent(transform, false);
+            Stretch((RectTransform)_root.transform);
+
+            // Stencil mask
+            _fogMask = new GameObject("ExploredMask").AddComponent<RawImage>();
+            _fogMask.transform.SetParent(_root.transform, false);
+            int maskSize = map.m_textureSize / FogMaskDownscale;
+            _fogMaskTexture = new Texture2D(maskSize, maskSize, TextureFormat.RGBA32, false);
+            _fogMaskTexture.wrapMode = TextureWrapMode.Clamp;
+            _fogMask.texture = _fogMaskTexture;
+            _fogMask.raycastTarget = false;
+            Stretch(_fogMask.rectTransform);
+            Mask mask = _fogMask.gameObject.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+
             _mapImage = new GameObject("MapImage").AddComponent<RawImage>();
-            _mapImage.transform.SetParent(transform, false);
-            // Default UI material on purpose — see the _composite field comment.
+            _mapImage.transform.SetParent(_fogMask.transform, false);
             _mapImage.texture = _composite;
             _mapImage.raycastTarget = false;
-
-            RectTransform mapRect = _mapImage.rectTransform;
-            mapRect.anchorMin = Vector2.zero;
-            mapRect.anchorMax = Vector2.one;
-            mapRect.offsetMin = Vector2.zero;
-            mapRect.offsetMax = Vector2.zero;
+            Stretch(_mapImage.rectTransform);
 
             _markerTexture = CreateMarkerTexture(16);
             _playerMarker = new GameObject("PlayerMarker").AddComponent<RawImage>();
-            _playerMarker.transform.SetParent(transform, false);
+            _playerMarker.transform.SetParent(_root.transform, false);
             _playerMarker.texture = _markerTexture;
             _playerMarker.raycastTarget = false;
 
