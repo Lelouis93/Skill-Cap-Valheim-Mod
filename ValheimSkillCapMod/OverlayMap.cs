@@ -142,23 +142,26 @@ namespace MyBepInExPlugin
                 _fogMaskTexture.Apply(false);
             }
 
-            Material mapMaterial = map.m_mapImageSmall.material;
-            Texture mainTexture = map.m_mapImageSmall.mainTexture;
-            if (mapMaterial != null && mainTexture != null)
-            {
-                Graphics.Blit(mainTexture, _composite, mapMaterial);
-                if (_fogBundleMat != null)
-                {
-                    Graphics.Blit(_fogMaskTexture, _composite, _fogBundleMat);
-                }
-            }
-
             WorldToMapUV(player.transform.position, map, out float mx, out float my);
 
             float height = Zoom;
             float width = Zoom * ((float)Screen.width / Screen.height);
             Rect view = new Rect(mx - width * 0.5f, my - height * 0.5f, width, height);
-            _mapImage.uvRect = view;
+
+            EnsureComposite();
+            Material mapMaterial = map.m_mapImageSmall.material;
+            if (mapMaterial != null)
+            {
+                RenderTexture prev = RenderTexture.active;
+                RenderTexture.active = _composite;
+                GL.PushMatrix();
+                GL.LoadOrtho();
+                DrawViewQuad(mapMaterial, view);
+                if (_fogBundleMat != null) DrawViewQuad(_fogBundleMat, view);
+                GL.PopMatrix();
+                RenderTexture.active = prev;
+            }
+
             _fogMask.uvRect = view;
 
             if (_playerMarker != null)
@@ -330,6 +333,25 @@ namespace MyBepInExPlugin
             }
         }
 
+        private void EnsureComposite()
+        {
+            if (_composite != null && _composite.width == Screen.width && _composite.height == Screen.height) return;
+            if (_composite != null) _composite.Release();
+            _composite = new RenderTexture(Screen.width, Screen.height, 0);
+            if (_mapImage != null) _mapImage.texture = _composite;
+        }
+
+        private static void DrawViewQuad(Material material, Rect view)
+        {
+            material.SetPass(0);
+            GL.Begin(GL.QUADS);
+            GL.TexCoord2(view.xMin, view.yMin); GL.Vertex3(0f, 0f, 0f);
+            GL.TexCoord2(view.xMax, view.yMin); GL.Vertex3(1f, 0f, 0f);
+            GL.TexCoord2(view.xMax, view.yMax); GL.Vertex3(1f, 1f, 0f);
+            GL.TexCoord2(view.xMin, view.yMax); GL.Vertex3(0f, 1f, 0f);
+            GL.End();
+        }
+
         private static void Stretch(RectTransform rect)
         {
             rect.anchorMin = Vector2.zero;
@@ -347,8 +369,7 @@ namespace MyBepInExPlugin
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 100;
 
-            _composite = new RenderTexture(map.m_textureSize, map.m_textureSize, 0);
-            _composite.wrapMode = TextureWrapMode.Clamp;
+            EnsureComposite();
 
             _root = new GameObject("MapRoot", typeof(RectTransform));
             _root.transform.SetParent(transform, false);
@@ -367,6 +388,7 @@ namespace MyBepInExPlugin
             if (bundleShader != null)
             {
                 _fogBundleMat = new Material(bundleShader);
+                _fogBundleMat.mainTexture = _fogMaskTexture;
                 _fogMask.enabled = false;
             }
             else
