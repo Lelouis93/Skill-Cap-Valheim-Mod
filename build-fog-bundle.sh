@@ -12,7 +12,7 @@ unity run "$PROJECT" \
   --allow-install --no-banner --non-interactive --timeout 1800 \
   -- -executeMethod BuildFogBundle.Build -logFile "$PROJECT/build.log"
 
-BUNDLE="$PROJECT/AssetBundles/overlaymapfog"
+BUNDLE="$PROJECT/AssetBundles/linux/overlaymapfog"
 if [ ! -f "$BUNDLE" ]; then
     echo "Bundle not produced - see $PROJECT/build.log" >&2
     exit 1

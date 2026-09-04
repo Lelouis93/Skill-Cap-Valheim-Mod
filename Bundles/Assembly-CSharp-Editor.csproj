@@ -536,6 +536,10 @@
       <HintPath>/home/acds/Unity/Hub/Editor/6000.0.61f1/Editor/Data/Managed/UnityEditor.Graphs.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEditor.WindowsStandalone.Extensions">
+      <HintPath>/home/acds/Unity/Hub/Editor/6000.0.61f1/Editor/Data/PlaybackEngines/WindowsStandaloneSupport/UnityEditor.WindowsStandalone.Extensions.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="UnityEditor.LinuxStandalone.Extensions">
       <HintPath>/home/acds/Unity/Hub/Editor/6000.0.61f1/Editor/Data/PlaybackEngines/LinuxStandaloneSupport/UnityEditor.LinuxStandalone.Extensions.dll</HintPath>
       <Private>False</Private>
