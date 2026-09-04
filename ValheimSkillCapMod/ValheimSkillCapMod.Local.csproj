@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+        <AssemblyName>ValheimSkillCapMod</AssemblyName>
+        <RootNamespace>ValheimSkillCapMod</RootNamespace>
+        <LangVersion>latest</LangVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <EnableDefaultItems>true</EnableDefaultItems>
+        <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)../../..</GameDir>
+        <ManagedDir>$(GameDir)/valheim_Data/Managed</ManagedDir>
+        <BepInExDir>$(GameDir)/BepInEx</BepInExDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- .NET Framework 4.8 reference assemblies so net48 builds on any OS -->
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="$(ManagedDir)/assembly_valheim.dll" Private="false"/>
+        <Reference Include="$(ManagedDir)/assembly_utils.dll" Private="false"/>
+        <Reference Include="$(ManagedDir)/assembly_simplemeshcombine.dll" Private="false"/>
+        <Reference Include="$(ManagedDir)/UnityEngine.dll" Private="false"/>
+        <Reference Include="$(ManagedDir)/UnityEngine.*.dll" Private="false"/>
+        <Reference Include="$(BepInExDir)/core/0Harmony.dll" Private="false"/>
+        <Reference Include="$(BepInExDir)/core/BepInEx.dll" Private="false"/>
+        <Reference Include="$(BepInExDir)/core/BepInEx.Harmony.dll" Private="false"/>
+        <Reference Include="$(BepInExDir)/core/Mono.Cecil.dll" Private="false"/>
+        <Reference Include="$(BepInExDir)/plugins/Jotunn.dll" Private="false"/>
+    </ItemGroup>
+</Project>
