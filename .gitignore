@@ -1,0 +1,8 @@
+﻿**/*.dll
+**/*.7z
+**/*.p7s
+bin/
+obj/
+packages/
+Libraries/
+**/*.idea
