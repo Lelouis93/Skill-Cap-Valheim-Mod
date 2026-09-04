@@ -45,8 +45,7 @@ namespace MyBepInExPlugin
 
         private GameObject _root;
         private RawImage _mapImage;
-        private RawImage _playerMarker;
-        private Texture2D _markerTexture;
+        private Image _playerMarker;
         private RenderTexture _composite;
 
         private RawImage _fogMask;
@@ -78,7 +77,6 @@ namespace MyBepInExPlugin
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
-            if (_markerTexture != null) Destroy(_markerTexture);
             if (_fogMaskTexture != null) Destroy(_fogMaskTexture);
             if (_fogBundleMat != null) Destroy(_fogBundleMat);
             if (_composite != null) _composite.Release();
@@ -163,11 +161,18 @@ namespace MyBepInExPlugin
             _mapImage.uvRect = view;
             _fogMask.uvRect = view;
 
+            if (_playerMarker != null)
+            {
+                _playerMarker.rectTransform.localEulerAngles = new Vector3(0f, 0f, -player.transform.eulerAngles.y);
+            }
+
             SyncPins(map, view);
         }
 
         private static readonly System.Reflection.FieldInfo PinsField =
             AccessTools.Field(typeof(Minimap), "m_pins");
+        private static readonly System.Reflection.FieldInfo SmallMarkerField =
+            AccessTools.Field(typeof(Minimap), "m_smallMarker");
         private static readonly System.Reflection.FieldInfo ExploredField =
             AccessTools.Field(typeof(Minimap), "m_explored");
         private static readonly System.Reflection.FieldInfo ExploredOthersField =
@@ -380,17 +385,21 @@ namespace MyBepInExPlugin
             _pinLayer.SetParent(_root.transform, false);
             Stretch(_pinLayer);
 
-            _markerTexture = CreateMarkerTexture(16);
-            _playerMarker = new GameObject("PlayerMarker").AddComponent<RawImage>();
-            _playerMarker.transform.SetParent(_root.transform, false);
-            _playerMarker.texture = _markerTexture;
-            _playerMarker.raycastTarget = false;
+            RectTransform smallMarker = SmallMarkerField != null ? SmallMarkerField.GetValue(map) as RectTransform : null;
+            Image markerSource = smallMarker != null ? smallMarker.GetComponent<Image>() : null;
+            if (markerSource != null && markerSource.sprite != null)
+            {
+                _playerMarker = new GameObject("PlayerMarker").AddComponent<Image>();
+                _playerMarker.transform.SetParent(_root.transform, false);
+                _playerMarker.sprite = markerSource.sprite;
+                _playerMarker.raycastTarget = false;
 
-            RectTransform markerRect = _playerMarker.rectTransform;
-            markerRect.anchorMin = new Vector2(0.5f, 0.5f);
-            markerRect.anchorMax = new Vector2(0.5f, 0.5f);
-            markerRect.sizeDelta = new Vector2(14f, 14f);
-            markerRect.anchoredPosition = Vector2.zero;
+                RectTransform markerRect = _playerMarker.rectTransform;
+                markerRect.anchorMin = new Vector2(0.5f, 0.5f);
+                markerRect.anchorMax = new Vector2(0.5f, 0.5f);
+                markerRect.sizeDelta = smallMarker.sizeDelta.x >= 1f ? smallMarker.sizeDelta : new Vector2(32f, 32f);
+                markerRect.anchoredPosition = Vector2.zero;
+            }
 
             _built = true;
             ApplyAlpha();
@@ -401,25 +410,7 @@ namespace MyBepInExPlugin
         private void ApplyAlpha()
         {
             _mapImage.color = new Color(1f, 1f, 1f, Alpha);
-            _playerMarker.color = new Color(1f, 0.25f, 0.25f, Mathf.Clamp01(Alpha + 0.4f));
-        }
-
-        private static Texture2D CreateMarkerTexture(int size)
-        {
-            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            float radius = size / 2f - 0.5f;
-            Vector2 center = new Vector2(size / 2f - 0.5f, size / 2f - 0.5f);
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    bool inside = Vector2.Distance(new Vector2(x, y), center) <= radius;
-                    tex.SetPixel(x, y, inside ? Color.white : Color.clear);
-                }
-            }
-
-            tex.Apply();
-            return tex;
+            if (_playerMarker != null) _playerMarker.color = new Color(1f, 1f, 1f, Mathf.Clamp01(Alpha + 0.4f));
         }
     }
 
