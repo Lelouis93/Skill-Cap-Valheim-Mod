@@ -83,10 +83,10 @@ namespace MyBepInExPlugin
             HarmonyInstance.PatchAll(assembly);
 
             // Registered before asset loading so the commands survive missing bundles
-            DiabloMap.BindConfig(Config);
-            CommandManager.Instance.AddConsoleCommand(new DiabloMapCommand());
-            CommandManager.Instance.AddConsoleCommand(new DiabloMapZoomCommand());
-            CommandManager.Instance.AddConsoleCommand(new DiabloMapAlphaCommand());
+            OverlayMap.BindConfig(Config);
+            CommandManager.Instance.AddConsoleCommand(new OverlayMapCommand());
+            CommandManager.Instance.AddConsoleCommand(new OverlayMapZoomCommand());
+            CommandManager.Instance.AddConsoleCommand(new OverlayMapAlphaCommand());
 
             // Need to try catch since the assets does not exist in the rpo
             try
