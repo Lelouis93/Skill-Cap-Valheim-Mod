@@ -1,2 +1,11 @@
 bin/
 obj/
+.vscode
+
+Bundles/Library/
+Bundles/Temp/
+Bundles/Logs/
+Bundles/UserSettings/
+Bundles/AssetBundles/
+Bundles/build.log
+Bundles/*.slnx

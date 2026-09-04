@@ -103,12 +103,18 @@
         <Reference Include="UnityEngine.UI">
             <HintPath>..\..\..\..\valheim_Data\Managed\UnityEngine.UI.dll</HintPath>
         </Reference>
+        <Reference Include="UnityEngine.UIModule">
+          <HintPath>..\..\..\..\valheim_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+        </Reference>
+        <Reference Include="UnityEngine.InputLegacyModule">
+          <HintPath>..\..\..\..\valheim_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+        </Reference>
         <Reference Include="UnityEngine.CoreModule">
           <HintPath>..\..\..\..\valheim_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
         </Reference>
     </ItemGroup>
     <ItemGroup>
-        <Compile Include="DiabloMap.cs"/>
+        <Compile Include="OverlayMap.cs"/>
         <Compile Include="Program.cs"/>
         <Compile Include="Properties\AssemblyInfo.cs"/>
     </ItemGroup>
