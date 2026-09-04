@@ -3760,9 +3760,6 @@ namespace MyBepInExPlugin
                 }
             }
 
-            ///Alex: was a field initializer; if the bundles are missing it threw an NRE inside
-            ///this class's static constructor, which then broke EVERY patch in the class
-            ///(TypeInitializationException in Humanoid.Awake -> character loading failed).
             private static Dictionary<string, StatusEffect> statusEffectDic = BuildStatusEffectDic();
 
             private static Dictionary<string, StatusEffect> BuildStatusEffectDic()
