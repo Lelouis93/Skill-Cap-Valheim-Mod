@@ -22,10 +22,12 @@ namespace MyBepInExPlugin
         private static ConfigEntry<KeyCode> _toggleKey;
         private static ConfigEntry<float> _zoom;
         private static ConfigEntry<float> _alpha;
+        private static ConfigEntry<float> _feather;
 
         public static KeyCode ToggleKey => _toggleKey != null ? _toggleKey.Value : KeyCode.Y;
         public static float Zoom => _zoom != null ? _zoom.Value : 0.05f;
         public static float Alpha => _alpha != null ? _alpha.Value : 0.5f;
+        public static float Feather => _feather != null ? _feather.Value : 2f;
 
         public static void BindConfig(ConfigFile config)
         {
@@ -37,9 +39,17 @@ namespace MyBepInExPlugin
             _alpha = config.Bind("OverlayMap", "Opacity", 0.5f, new ConfigDescription(
                 "Overlay opacity",
                 new AcceptableValueRange<float>(0f, 1f)));
+            _feather = config.Bind("OverlayMap", "Fog feather", 2f, new ConfigDescription(
+                "Fog edge softness in map texels (needs the overlaymapfog bundle)",
+                new AcceptableValueRange<float>(0f, 8f)));
             _alpha.SettingChanged += (sender, args) =>
             {
                 if (Instance != null && Instance._built) Instance.ApplyAlpha();
+            };
+            _feather.SettingChanged += (sender, args) =>
+            {
+                if (Instance != null && Instance._fogBundleMat != null)
+                    Instance._fogBundleMat.SetFloat("_Feather", Feather);
             };
         }
 
@@ -389,6 +399,7 @@ namespace MyBepInExPlugin
             {
                 _fogBundleMat = new Material(bundleShader);
                 _fogBundleMat.mainTexture = _fogMaskTexture;
+                _fogBundleMat.SetFloat("_Feather", Feather);
                 _fogMask.enabled = false;
             }
             else
