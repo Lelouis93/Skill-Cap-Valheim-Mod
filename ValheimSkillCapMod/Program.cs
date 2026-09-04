@@ -82,17 +82,27 @@ namespace MyBepInExPlugin
             Assembly assembly = Assembly.GetExecutingAssembly();
             HarmonyInstance.PatchAll(assembly);
 
-            LoadAssets();
-            AddRecipes();
-            PrefabManager.OnVanillaPrefabsAvailable += CreateWax;
-            PrefabManager.OnVanillaPrefabsAvailable += CreateCapes;
-            PrefabManager.OnVanillaPrefabsAvailable += AddClonedItems;
-            PrefabManager.OnVanillaPrefabsAvailable += FixShaders;
-            PrefabManager.OnVanillaPrefabsAvailable += CreateNewHaldor;
-            ///Alex
-            // CommandManager.Instance.AddConsoleCommand(new ToggleCommand());
-            // CommandManager.Instance.AddConsoleCommand(new LogCommand());
-            // CommandManager.Instance.AddConsoleCommand(new LargeZoomCommand());
+            // Registered before asset loading so the commands survive missing bundles
+            CommandManager.Instance.AddConsoleCommand(new DiabloMapCommand());
+            CommandManager.Instance.AddConsoleCommand(new DiabloMapZoomCommand());
+            CommandManager.Instance.AddConsoleCommand(new DiabloMapAlphaCommand());
+
+            // Need to try catch since the assets does not exist in the rpo
+            try
+            {
+                LoadAssets();
+                AddRecipes();
+                PrefabManager.OnVanillaPrefabsAvailable += CreateWax;
+                PrefabManager.OnVanillaPrefabsAvailable += CreateCapes;
+                PrefabManager.OnVanillaPrefabsAvailable += AddClonedItems;
+                PrefabManager.OnVanillaPrefabsAvailable += FixShaders;
+                PrefabManager.OnVanillaPrefabsAvailable += CreateNewHaldor;
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning("Skill-Cap assets unavailable (bundles missing next to the DLL?). " +
+                                  "Running without custom items/pieces. First error: " + e.Message);
+            }
             
             //RPC
             //AddStatusEffectRPC = NetworkManager.Instance.AddRPC("AddStatusEffectRPC", UselessRPCServerReceive, UselessRPCClientReceive);
@@ -110,6 +120,10 @@ namespace MyBepInExPlugin
             string locationhaldor = locationtest;
             string locationfoods = locationtest;
             string locationconfig = locationtest;
+
+            worldExpModifier = Config.Bind("Server config", "FloatValue1", 1f,
+                new ConfigDescription("Server side float", null,
+                    new ConfigurationManagerAttributes { IsAdminOnly = false }));
 
             waxAsset = AssetUtils.LoadAssetBundle(locationwax += "wax");
             waxPrefab = waxAsset.LoadAsset<GameObject>("wax");
@@ -132,11 +146,6 @@ namespace MyBepInExPlugin
 
             //ConfigFile customConfig = new ConfigFile(locationconfig, true);
             //SynchronizationManager.Instance.RegisterCustomConfig(customConfig);
-            worldExpModifier = Config.Bind("Server config", "FloatValue1", 1f,
-                new ConfigDescription("Server side float", null,
-                    new ConfigurationManagerAttributes { IsAdminOnly = false }));
-            
-
         }
 
         
@@ -3750,15 +3759,31 @@ namespace MyBepInExPlugin
                 }
             }
 
-            private static Dictionary<string, StatusEffect> statusEffectDic = new Dictionary<string, StatusEffect>
+            ///Alex: was a field initializer; if the bundles are missing it threw an NRE inside
+            ///this class's static constructor, which then broke EVERY patch in the class
+            ///(TypeInitializationException in Humanoid.Awake -> character loading failed).
+            private static Dictionary<string, StatusEffect> statusEffectDic = BuildStatusEffectDic();
+
+            private static Dictionary<string, StatusEffect> BuildStatusEffectDic()
             {
-                { "Attack Buff", newHaldorAssetBundle.LoadAsset<StatusEffect>("StatusEffect_AttackBuff") },
-                { "Attack Buff Visual", attackBuff },
-                { "Magic Shield Activated", ItemManager.Instance.GetItem("WoodCopy1").ItemDrop.m_itemData
-                    .m_shared.m_attackStatusEffect },
-                { "magic shield activated effect", newHaldorAssetBundle.LoadAsset<SE_Stats>("StatusEffect_MagicShieldActivatedEffect") },
-                { "Stamina Boost", newHaldorAssetBundle.LoadAsset<StatusEffect>("StatusEffect_StaminaBoost") },
-            };
+                try
+                {
+                    return new Dictionary<string, StatusEffect>
+                    {
+                        { "Attack Buff", newHaldorAssetBundle.LoadAsset<StatusEffect>("StatusEffect_AttackBuff") },
+                        { "Attack Buff Visual", attackBuff },
+                        { "Magic Shield Activated", ItemManager.Instance.GetItem("WoodCopy1").ItemDrop.m_itemData
+                            .m_shared.m_attackStatusEffect },
+                        { "magic shield activated effect", newHaldorAssetBundle.LoadAsset<SE_Stats>("StatusEffect_MagicShieldActivatedEffect") },
+                        { "Stamina Boost", newHaldorAssetBundle.LoadAsset<StatusEffect>("StatusEffect_StaminaBoost") },
+                    };
+                }
+                catch (Exception e)
+                {
+                    logger.LogWarning("statusEffectDic unavailable (assets not loaded): " + e.Message);
+                    return new Dictionary<string, StatusEffect>();
+                }
+            }
             
             //start of RPC stuff
             private static void RPC_ApplyEffectsToOtherPlayers(long sender, long target, string effect)
@@ -3861,404 +3886,6 @@ namespace MyBepInExPlugin
                      }
              }
 
-
-            //shits de renderer projet avec Alex
-            //
-            //         public static Transform MapRoot;
-            //         public static Minimap Minimap;
-            //
-            //         [HarmonyPostfix]
-            //         [HarmonyPatch(typeof(Minimap), "SetMapMode")]
-            //         public static void ForceSetMinimapRate(Minimap __instance)
-            //         {
-            //             Minimap = __instance;
-            //             MapRoot = __instance.m_mapLarge.transform;
-            //
-            //             for (int i = 0; i < __instance.m_mapLarge.transform.childCount; i++)
-            //             {
-            //                 Transform child = __instance.m_mapLarge.transform.GetChild(i);
-            //         
-            //                 logger.LogInfo(
-            //                     $"Child of large map: {child.gameObject.name}. Has Image: {(child.GetComponent<RawImage>() != null)}");
-            //             }
-            //
-            //             var components = __instance.GetComponentsInChildren<Image>();
-            //             var rawImages = __instance.GetComponentsInChildren<RawImage>();
-            //         
-            //             foreach (var image in components)
-            //             {
-            //                 image.color = new Color(image.color.r, image.color.g, image.color.b, 0.5f);
-            //             }
-            //         
-            //             foreach (var image in rawImages)
-            //             {
-            //                 image.color = new Color(image.color.r, image.color.g, image.color.b, 0.5f);
-            //             }
-            //         }
-            //
-            //         //private static GameObject _diablo;
-            //
-            //         [HarmonyPostfix]
-            //         [HarmonyPatch(typeof(Minimap), "Awake")]
-            //         private static void OnAwake()
-            //         {
-            //             // _diablo = new GameObject();
-            //             // CustomBoiiiii comp = _diablo.AddComponent<CustomBoiiiii>();
-            //         }
-            //         
-            //         //
-            //         // [HarmonyPrefix]
-            //         // [HarmonyPatch(typeof(Minimap), "OnDestroy")]
-            //         // private static void OnDestroy()
-            //         // {
-            //         //     Destroy(_diablo);
-            //         //     RenderPipelineManager.beginCameraRendering -= OnRender;
-            //         // }
-            //         //
-            //         // static void OnRender(ScriptableRenderContext context, Camera camera)
-            //         // {
-            //         //     // 1. Check if camera is main render camera, return if not
-            //         //     if(camera != GameCamera.instance.GetComponent<Camera>())
-            //         //     {
-            //         //         logger.LogInfo("Wrong camera; Not rendering");
-            //         //         return;
-            //         //     }
-            //         //     
-            //         //     logger.LogInfo($"Right camera; Rendering to {camera.gameObject.name}'s and it sucks");
-            //         //     
-            //         //     List<Renderer> renderers = new List<Renderer>();
-            //         //     _targetToRender.GetComponentsInChildren<Renderer>(true, renderers);
-            //         //     
-            //         //     // Unsure if this is how you actually initialize one
-            //         //     int nameId = Shader.PropertyToID("MINE-YOU-FUCKER");
-            //         //     
-            //         //     CommandBuffer cmd = new CommandBuffer();
-            //         //     RenderTargetIdentifier id = new RenderTargetIdentifier(nameId);
-            //         //     
-            //         //     cmd.GetTemporaryRT(nameId, 1024, 1024);
-            //         //     cmd.SetRenderTarget(id);
-            //         //     
-            //         //     foreach (Renderer renderer in renderers)
-            //         //     {
-            //         //         cmd.DrawRenderer(renderer, null);
-            //         //     }
-            //         //     
-            //         //     cmd.Blit(id, camera.activeTexture, _postProcessMaterial);
-            //         //     
-            //         //     cmd.ReleaseTemporaryRT(nameId);
-            //         //     context.ExecuteCommandBuffer(cmd);
-            //         // }
-            //     }
-            //
-            //     public static int Toggle = 0;
-            //     public class ToggleCommand : ConsoleCommand
-            //     {
-            //         public override string Name => "custom_toggle";
-            //         public override string Help => "Toggle the toggle";
-            //         public override void Run(string[] args)
-            //         {
-            //             Toggle = (Toggle + 1) % 4;
-            //             logger.LogInfo($"Toggle is now: {Toggle}");
-            //         }
-            //     }
-            //     
-            //     public class LargeZoomCommand : ConsoleCommand
-            //     {
-            //         public override string Name => "large_zoom";
-            //         public override string Help => "Large Zoom";
-            //         public override void Run(string[] args)
-            //         {
-            //             float lg = float.Parse(args[1]);
-            //             CustomBoiiiii.LargeZoom = lg;
-            //             logger.LogInfo($"Large zoom is now: {lg}");
-            //         }
-            //     }
-            //
-            //     public class LogCommand : ConsoleCommand
-            //     {
-            //         public override string Name => "custom_log";
-            //         public override string Help => "Log the log";
-            //         public override void Run(string[] args)
-            //         {
-            //             LogAllComponentsRecursive(ChangeRaiseSkillMethod.MapRoot);
-            //
-            //             RawImage rawImage = ChangeRaiseSkillMethod.MapRoot.GetComponent<RawImage>();
-            //             logger.LogInfo($"Raw image: {rawImage?.name}");
-            //
-            //             Texture tex = ChangeRaiseSkillMethod.MapRoot.GetComponent<RawImage>().texture;
-            //             logger.LogInfo($"Texture: {tex?.name}");
-            //             
-            //             Material mat = ChangeRaiseSkillMethod.MapRoot.GetComponent<RawImage>().material;
-            //             logger.LogInfo($"Material: {mat?.name}");
-            //
-            //             Shader shader = mat?.shader;
-            //             logger.LogInfo($"Shader: {shader?.name}");
-            //             
-            //             logger.LogInfo($"Texture Size: {tex?.width}/{tex?.height}");
-            //             
-            //             logger.LogInfo($"Material <{mat?.name}> properties:");
-            //             
-            //             for (int i = 0; i < (mat?.shader.GetPropertyCount() ?? 0); i++)
-            //             {
-            //                 logger.LogInfo($"\n<{mat.shader.GetPropertyName(i)}>: {Enum.GetName(typeof(ShaderPropertyType), mat.shader.GetPropertyType(i))}");
-            //             }
-            //         }
-            //
-            //         void LogAllComponentsRecursive(Transform transform, int layer = 0)
-            //         {
-            //             Log($"Object name: {transform.gameObject.name}:", layer);
-            //             foreach (var component in transform.gameObject.GetComponents<Component>())
-            //             {
-            //                 Log($"{component.GetType()}", layer + 1);
-            //             }
-            //             
-            //             Log($"------", layer + 1);
-            //             
-            //             for (int i = 0; i < transform.childCount; i++)
-            //             {
-            //                 LogAllComponentsRecursive(transform.GetChild(i), layer + 1);
-            //             }
-            //         }
-            //
-            //         void Log(string text, int indent)
-            //         {
-            //             string indentTxt = "";
-            //             for (int i = 0; i < indent; i++)
-            //             {
-            //                 indentTxt += "\t";
-            //             }
-            //             logger.LogInfo($"{indentTxt}{text}");
-            //         }
-            //     }
-            //
-            //     class CustomBoiiiii : MonoBehaviour
-            //     {
-            //         
-            //         public static float LargeZoom = 0.1f;
-            //
-            //         private static GameObject _targetToRender;
-            //         private static List<Renderer> _renderers = new List<Renderer>();
-            //         private static Material _postProcessMaterial;
-            //         private static Material materio;
-            //         private static Texture2D tex;
-            //
-            //         private Mesh mesh;
-            //         private Mesh quadMesh;
-            //         private Camera cam;
-            //
-            //         private void Awake()
-            //         {
-            //             cam = gameObject.AddComponent<Camera>();
-            //             cam.orthographic = true;
-            //             cam.cullingMask = 0;
-            //             cam.clearFlags = CameraClearFlags.Color;
-            //             cam.backgroundColor = Color.black;
-            //             
-            //             var shader = Shader.Find("Sprites/Default");
-            //             _postProcessMaterial = new Material(shader);
-            //             materio = newHaldorAssetBundle.LoadAsset<Material>("Materio");
-            //             
-            //             _targetToRender = Minimap.instance.m_largeRoot;
-            //             //logger.LogInfo("Modded awake done correctly");
-            //             Camera.onPostRender += OnPostRenderTamere;
-            //
-            //             tex = new Texture2D(8, 8, TextureFormat.RGBA32, false);
-            //
-            //             for (int i = 0; i < 8; i++)
-            //             {
-            //                 for (int j = 0; j < 8; j++)
-            //                 {
-            //                     tex.SetPixel(i, j, Color.red);
-            //                 }
-            //             }
-            //
-            //             tex.Apply();
-            //             mesh = new Mesh();
-            //             quadMesh = new Mesh();
-            //             
-            //             int[] indices =
-            //             {
-            //                 0, 2, 1,
-            //                 2, 3, 1,
-            //             };
-            //
-            //             Vector3[] quad = new Vector3[] 
-            //             { 
-            //                    new Vector3(-.5f, -.5f),
-            //                    new Vector3(.5f, -.5f), 
-            //                    new Vector3(-.5f, .5f), 
-            //                    new Vector3(.5f, .5f)
-            //             };
-            //
-            //
-            //             Vector2[] uv = new Vector2[]
-            //             {
-            //                 new Vector2(0f,0f),
-            //                 new Vector2(1f, 0f),
-            //                 new Vector2(0f, 1f),
-            //                 new Vector2(1f, 1f)
-            //             };
-            //             
-            //             mesh.SetVertices(quad);
-            //             mesh.SetUVs(0, uv);
-            //             quadMesh.SetVertices(quad);
-            //             quadMesh.SetUVs(0, uv);
-            //             mesh.SetIndices(indices, MeshTopology.Triangles, 0, true, 0);
-            //             quadMesh.SetIndices(indices, MeshTopology.Triangles, 0, true, 0);
-            //             quadMesh.RecalculateBounds();
-            //         }
-            //
-            //         private void OnDestroy()
-            //         {
-            //             Camera.onPostRender -= OnPostRenderTamere;
-            //         }
-            //
-            //         private void WorldToMapPoint(Vector3 p, out float mx, out float my, Minimap minimap)
-            //         {
-            //             int num = minimap.m_textureSize / 2;
-            //             mx = p.x / minimap.m_pixelSize + (float)num;
-            //             my = p.z / minimap.m_pixelSize + (float)num;
-            //             mx /=(float)minimap.m_textureSize;
-            //             my /= (float)minimap.m_textureSize;
-            //         }
-            //
-            //         private void LateUpdate()
-            //         {
-            //             RenderTexture rt = RenderTexture.GetTemporary(1024, 1024, 0, GraphicsFormat.R8G8B8A8_SRGB);
-            //
-            //             List<Renderer> renderers = new List<Renderer>();
-            //             _targetToRender.GetComponentsInChildren<Renderer>(true, renderers);
-            //
-            //             // Unsure if this is how you actually initialize one
-            //             CommandBuffer cmd = new CommandBuffer();
-            //
-            //             cmd.SetRenderTarget(rt);
-            //
-            //             foreach (Renderer renderer in renderers)
-            //             {
-            //                 logger.LogInfo($"Renderer; Type: {renderer.GetType()}");
-            //                 cmd.DrawRenderer(renderer, materio);
-            //             }
-            //             
-            //             Vector3[] corners = new Vector3[4];
-            //             mesh.SetVertices(corners);
-            //             mesh.RecalculateBounds();
-            //             
-            //             Vector3 targetPosition = Player.m_localPlayer? Player.m_localPlayer.transform.position : Vector3.zero;
-            //             targetPosition = new Vector3(targetPosition.x, targetPosition.y + 2f, targetPosition.z);
-            //             Matrix4x4 transform = Matrix4x4.TRS(targetPosition, Quaternion.identity, Vector3.one * 5f);
-            //
-            //             Graphics.DrawMesh(mesh, transform, _postProcessMaterial, 0);
-            //             Graphics.DrawTexture(new Rect(0, 0, 1600, 900), rt);
-            //             Graphics.DrawTexture(new Rect(0, 0, 1600, 900), tex);
-            //             
-            //             cam.forceIntoRenderTexture = true;
-            //             cam.targetTexture = rt;
-            //
-            //             Camera mainCam = Camera.main;
-            //             cam.orthographic = mainCam.orthographic;
-            //             cam.fieldOfView = mainCam.fieldOfView;
-            //             cam.transform.position = mainCam.transform.position;
-            //             cam.transform.rotation = mainCam.transform.rotation;
-            //             
-            //             switch (Toggle)
-            //             {
-            //                 case 0:
-            //                     break;
-            //                 case 1: 
-            //                     materio.SetTexture("_MainTex", tex);
-            //                     Graphics.DrawMesh(quadMesh, transform, materio, 0);
-            //                     break;
-            //                 case 2:
-            //                     materio.SetTexture("_MainTex", rt);
-            //                     Graphics.DrawMesh(quadMesh, transform, materio, 0);
-            //                     break;
-            //                 case 3:
-            //                     Minimap minimap = ChangeRaiseSkillMethod.Minimap;
-            //                     WorldToMapPoint(targetPosition, out float x, out float y, minimap);
-            //
-            //                     float ratio = 1f / 1f;
-            //                     float width =  LargeZoom * ratio;
-            //                     float heigth = LargeZoom;
-            //
-            //                     Vector2[] uv = new Vector2[]
-            //                     {
-            //                         new Vector2(x        , y         ), // Bottom Left
-            //                         new Vector2(x + width, y         ), // Bottom Right
-            //                         new Vector2(x        , y + heigth), // Top Left
-            //                         new Vector2(x + width, y + heigth) // Top Right
-            //                     };
-            //
-            //                     quadMesh.SetUVs(0, uv);
-            //
-            //                     Material mat = ChangeRaiseSkillMethod.MapRoot.GetComponent<RawImage>().material;
-            //                     mat.SetFloat("_zoom", LargeZoom);
-            //                     mat.SetFloat("_pixelSize", 200f / LargeZoom);
-            //                     mat.SetVector("_mapCenter", (Vector4) targetPosition);
-            //                     materio.SetTexture("_MainTex", rt);
-            //                     Graphics.DrawMesh(quadMesh, transform, mat, 0, cam);
-            //                     // Graphics.DrawMesh(quadMesh, Matrix4x4.TRS(Vector3.zero, Quaternion.identity, Vector3.one), mat, 0, cam);
-            //                     break;
-            //                 default:
-            //                     break;
-            //             }
-            //             
-            //             Graphics.ExecuteCommandBuffer(cmd);
-            //             
-            //             
-            //             
-            //             Vector2[] uv2 = new Vector2[]
-            //             {
-            //                 new Vector2(0f,0f),
-            //                 new Vector2(1f, 0f),
-            //                 new Vector2(0f, 1f),
-            //                 new Vector2(1f, 1f)
-            //             };
-            //
-            //             quadMesh.SetUVs(0, uv2);
-            //             
-            //             materio.SetTexture("_MainTex", rt);
-            //             Graphics.DrawMesh(quadMesh, transform, materio, 0);
-            //
-            //             RenderTexture.ReleaseTemporary(rt);
-            //             cmd.Dispose();
-            //         }
-            //
-            //         private void OnPostRenderTamere(Camera camera)
-            //         {
-            //             // RenderTexture rt = RenderTexture.GetTemporary(1024, 1024, 0, GraphicsFormat.R8G8B8A8_UNorm);
-            //             //
-            //             // List<Renderer> renderers = new List<Renderer>();
-            //             // _targetToRender.GetComponentsInChildren<Renderer>(true, renderers);
-            //             //
-            //             // // Unsure if this is how you actually initialize one
-            //             // CommandBuffer cmd = new CommandBuffer();
-            //             //
-            //             // cmd.SetRenderTarget(rt);
-            //             //
-            //             // foreach (Renderer renderer in renderers)
-            //             // {
-            //             //     cmd.DrawRenderer(renderer, _postProcessMaterial);
-            //             // }
-            //             //
-            //             // Graphics.ExecuteCommandBuffer(cmd);
-            //             // Graphics.Blit(rt, camera.activeTexture, _postProcessMaterial);
-            //             //
-            //             // Vector3[] corners = new Vector3[4];
-            //             // camera.CalculateFrustumCorners(new Rect(0, 0, 1600, 900), 10f, Camera.MonoOrStereoscopicEye.Mono, corners);
-            //             // mesh.SetVertices(corners);
-            //             // mesh.RecalculateBounds();
-            //             //
-            //             // Vector3 targetPosition = Player.m_localPlayer.transform.position;
-            //             // Matrix4x4 transform = Matrix4x4.TRS(targetPosition, Quaternion.identity, Vector3.one * 5f);
-            //             //
-            //             // Graphics.DrawMesh(mesh, transform, _postProcessMaterial, 0);
-            //             // Graphics.DrawTexture(new Rect(0, 0, 1600, 900), rt);
-            //             // Graphics.DrawTexture(new Rect(0, 0, 1600, 900), tex);
-            //             //
-            //             // Graphics.DrawMesh(quadMesh, transform, materio, 0);
-            //             // RenderTexture.ReleaseTemporary(rt);
-            //         }
         }
      }
 }
