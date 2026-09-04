@@ -27,7 +27,7 @@ namespace MyBepInExPlugin
         public static KeyCode ToggleKey => _toggleKey != null ? _toggleKey.Value : KeyCode.Y;
         public static float Zoom => _zoom != null ? _zoom.Value : 0.05f;
         public static float Alpha => _alpha != null ? _alpha.Value : 0.5f;
-        public static float Feather => _feather != null ? _feather.Value : 2f;
+        public static float Feather => _feather != null ? _feather.Value : 3.0f;
 
         public static void BindConfig(ConfigFile config)
         {
